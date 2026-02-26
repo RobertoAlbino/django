@@ -1,4 +1,6 @@
-GRADE_SCALE = [
+import logging
+
+ESCALA_NOTAS = [
     ("A+", 97, 100),
     ("A", 93, 96),
     ("A-", 90, 92),
@@ -12,17 +14,25 @@ GRADE_SCALE = [
     ("F", 0, 59),
 ]
 
-_LETTER_TO_MAX = {letter: max_val for letter, _, max_val in GRADE_SCALE}
+_LETRA_PARA_MAXIMO = {letra: valor_maximo for letra, _, valor_maximo in ESCALA_NOTAS}
+logger = logging.getLogger("core")
 
 
-def value_to_letter(value):
-    for letter, min_val, max_val in GRADE_SCALE:
-        if min_val <= value <= max_val:
-            return letter
-    raise ValueError(f"Grade value {value} out of range 0-100")
+def valor_para_letra(valor):
+    logger.info("[notas.valor_para_letra] inicio valor=%s", valor)
+    for letra, valor_minimo, valor_maximo in ESCALA_NOTAS:
+        if valor_minimo <= valor <= valor_maximo:
+            logger.info("[notas.valor_para_letra] fim letra=%s", letra)
+            return letra
+    logger.warning("[notas.valor_para_letra] valor_fora_intervalo valor=%s", valor)
+    raise ValueError(f"Valor da nota {valor} fora do intervalo 0-100")
 
 
-def letter_to_value(letter):
-    if letter not in _LETTER_TO_MAX:
-        raise ValueError(f"Unknown letter grade: {letter}")
-    return _LETTER_TO_MAX[letter]
+def letra_para_valor(letra):
+    logger.info("[notas.letra_para_valor] inicio letra=%s", letra)
+    if letra not in _LETRA_PARA_MAXIMO:
+        logger.warning("[notas.letra_para_valor] letra_invalida letra=%s", letra)
+        raise ValueError(f"Nota em letra desconhecida: {letra}")
+    valor = _LETRA_PARA_MAXIMO[letra]
+    logger.info("[notas.letra_para_valor] fim valor=%s", valor)
+    return valor

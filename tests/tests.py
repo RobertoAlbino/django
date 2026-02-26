@@ -1,223 +1,221 @@
 import pytest
 
-from core.exceptions import AlreadyEnrolledError, InvalidGradeError, NotEnrolledError
-from core.grades import letter_to_value, value_to_letter
+from core.exceptions import ErroJaMatriculado, ErroNaoMatriculado, ErroNotaInvalida
+from core.grades import letra_para_valor, valor_para_letra
 from core.services import (
-    add_grade,
-    create_course,
-    create_student,
-    enroll_student,
-    get_average,
-    get_average_letter,
-    get_course_students,
-    get_grades,
-    get_grades_as_letters,
-    get_report_card,
-    get_student_courses,
+    adicionar_nota,
+    criar_aluno,
+    criar_curso,
+    matricular_aluno,
+    obter_alunos_curso,
+    obter_boletim,
+    obter_cursos_aluno,
+    obter_media,
+    obter_media_em_letra,
+    obter_notas,
+    obter_notas_como_letras,
 )
 
 
 @pytest.mark.django_db
-class TestCreateEntities:
-    def test_create_student(self):
-        student = create_student("Alice")
-        assert student.name == "Alice"
-        assert student.pk is not None
+class TestCriacaoEntidades:
+    def test_criar_aluno(self):
+        aluno = criar_aluno("Alice")
+        assert aluno.nome == "Alice"
+        assert aluno.pk is not None
 
-    def test_create_course(self):
-        course = create_course("Math")
-        assert course.name == "Math"
-        assert course.pk is not None
-
-
-@pytest.mark.django_db
-class TestEnrollment:
-    def test_enroll_student(self):
-        student = create_student("Alice")
-        course = create_course("Math")
-        enrollment = enroll_student(student, course)
-        assert enrollment.student == student
-        assert enrollment.course == course
-
-    def test_enroll_student_duplicate(self):
-        student = create_student("Alice")
-        course = create_course("Math")
-        enroll_student(student, course)
-        with pytest.raises(AlreadyEnrolledError):
-            enroll_student(student, course)
+    def test_criar_curso(self):
+        curso = criar_curso("Math")
+        assert curso.nome == "Math"
+        assert curso.pk is not None
 
 
 @pytest.mark.django_db
-class TestListings:
-    def test_get_student_courses(self):
-        student = create_student("Alice")
-        math = create_course("Math")
-        physics = create_course("Physics")
-        enroll_student(student, math)
-        enroll_student(student, physics)
-        courses = get_student_courses(student)
-        assert set(courses.values_list("name", flat=True)) == {"Math", "Physics"}
+class TestMatricula:
+    def test_matricular_aluno(self):
+        aluno = criar_aluno("Alice")
+        curso = criar_curso("Math")
+        matricula = matricular_aluno(aluno, curso)
+        assert matricula.aluno == aluno
+        assert matricula.curso == curso
 
-    def test_get_course_students(self):
-        alice = create_student("Alice")
-        bob = create_student("Bob")
-        math = create_course("Math")
-        enroll_student(alice, math)
-        enroll_student(bob, math)
-        students = get_course_students(math)
-        assert set(students.values_list("name", flat=True)) == {"Alice", "Bob"}
+    def test_matricular_aluno_duplicado(self):
+        aluno = criar_aluno("Alice")
+        curso = criar_curso("Math")
+        matricular_aluno(aluno, curso)
+        with pytest.raises(ErroJaMatriculado):
+            matricular_aluno(aluno, curso)
 
 
 @pytest.mark.django_db
-class TestAddGrade:
-    def test_add_grade_numeric(self):
-        student = create_student("Alice")
-        course = create_course("Math")
-        enroll_student(student, course)
-        grade = add_grade(student, course, value=95)
-        assert grade.value == 95
+class TestListagens:
+    def test_obter_cursos_aluno(self):
+        aluno = criar_aluno("Alice")
+        matematica = criar_curso("Math")
+        fisica = criar_curso("Physics")
+        matricular_aluno(aluno, matematica)
+        matricular_aluno(aluno, fisica)
+        cursos = obter_cursos_aluno(aluno)
+        assert set(cursos.values_list("nome", flat=True)) == {"Math", "Physics"}
 
-    def test_add_grade_letter(self):
-        student = create_student("Alice")
-        course = create_course("Math")
-        enroll_student(student, course)
-        grade = add_grade(student, course, letter="A")
-        assert grade.value == 96  # max of A range
-
-    def test_add_grade_both_raises(self):
-        student = create_student("Alice")
-        course = create_course("Math")
-        enroll_student(student, course)
-        with pytest.raises(InvalidGradeError):
-            add_grade(student, course, value=95, letter="A")
-
-    def test_add_grade_neither_raises(self):
-        student = create_student("Alice")
-        course = create_course("Math")
-        enroll_student(student, course)
-        with pytest.raises(InvalidGradeError):
-            add_grade(student, course)
-
-    def test_add_grade_not_enrolled(self):
-        student = create_student("Alice")
-        course = create_course("Math")
-        with pytest.raises(NotEnrolledError):
-            add_grade(student, course, value=95)
-
-    def test_add_grade_invalid_value(self):
-        student = create_student("Alice")
-        course = create_course("Math")
-        enroll_student(student, course)
-        with pytest.raises(InvalidGradeError):
-            add_grade(student, course, value=101)
-
-    def test_add_grade_invalid_letter(self):
-        student = create_student("Alice")
-        course = create_course("Math")
-        enroll_student(student, course)
-        with pytest.raises(InvalidGradeError):
-            add_grade(student, course, letter="Z")
+    def test_obter_alunos_curso(self):
+        alice = criar_aluno("Alice")
+        bob = criar_aluno("Bob")
+        matematica = criar_curso("Math")
+        matricular_aluno(alice, matematica)
+        matricular_aluno(bob, matematica)
+        alunos = obter_alunos_curso(matematica)
+        assert set(alunos.values_list("nome", flat=True)) == {"Alice", "Bob"}
 
 
 @pytest.mark.django_db
-class TestGetGrades:
-    def test_get_grades(self):
-        student = create_student("Alice")
-        course = create_course("Math")
-        enroll_student(student, course)
-        add_grade(student, course, value=90)
-        add_grade(student, course, value=85)
-        assert get_grades(student, course) == [90, 85]
+class TestAdicionarNota:
+    def test_adicionar_nota_numerica(self):
+        aluno = criar_aluno("Alice")
+        curso = criar_curso("Math")
+        matricular_aluno(aluno, curso)
+        nota = adicionar_nota(aluno, curso, valor=95)
+        assert nota.valor == 95
 
-    def test_get_grades_as_letters(self):
-        student = create_student("Alice")
-        course = create_course("Math")
-        enroll_student(student, course)
-        add_grade(student, course, value=95)
-        add_grade(student, course, value=85)
-        assert get_grades_as_letters(student, course) == ["A", "B"]
+    def test_adicionar_nota_letra(self):
+        aluno = criar_aluno("Alice")
+        curso = criar_curso("Math")
+        matricular_aluno(aluno, curso)
+        nota = adicionar_nota(aluno, curso, letra="A")
+        assert nota.valor == 96
 
+    def test_adicionar_nota_valor_e_letra_gera_erro(self):
+        aluno = criar_aluno("Alice")
+        curso = criar_curso("Math")
+        matricular_aluno(aluno, curso)
+        with pytest.raises(ErroNotaInvalida):
+            adicionar_nota(aluno, curso, valor=95, letra="A")
 
-@pytest.mark.django_db
-class TestAverage:
-    def test_get_average(self):
-        student = create_student("Alice")
-        course = create_course("Math")
-        enroll_student(student, course)
-        add_grade(student, course, value=90)
-        add_grade(student, course, value=80)
-        assert get_average(student, course) == 85
+    def test_adicionar_nota_sem_valor_e_sem_letra_gera_erro(self):
+        aluno = criar_aluno("Alice")
+        curso = criar_curso("Math")
+        matricular_aluno(aluno, curso)
+        with pytest.raises(ErroNotaInvalida):
+            adicionar_nota(aluno, curso)
 
-    def test_get_average_rounds(self):
-        student = create_student("Alice")
-        course = create_course("Math")
-        enroll_student(student, course)
-        add_grade(student, course, value=90)
-        add_grade(student, course, value=81)
-        # (90 + 81) / 2 = 85.5 -> rounds to 86
-        assert get_average(student, course) == 86
+    def test_adicionar_nota_sem_matricula(self):
+        aluno = criar_aluno("Alice")
+        curso = criar_curso("Math")
+        with pytest.raises(ErroNaoMatriculado):
+            adicionar_nota(aluno, curso, valor=95)
 
-    def test_get_average_letter(self):
-        student = create_student("Alice")
-        course = create_course("Math")
-        enroll_student(student, course)
-        add_grade(student, course, value=90)
-        add_grade(student, course, value=80)
-        # average = 85 -> B
-        assert get_average_letter(student, course) == "B"
+    def test_adicionar_nota_valor_invalido(self):
+        aluno = criar_aluno("Alice")
+        curso = criar_curso("Math")
+        matricular_aluno(aluno, curso)
+        with pytest.raises(ErroNotaInvalida):
+            adicionar_nota(aluno, curso, valor=101)
 
-    def test_get_average_no_grades(self):
-        student = create_student("Alice")
-        course = create_course("Math")
-        enroll_student(student, course)
-        assert get_average(student, course) == 0
+    def test_adicionar_nota_letra_invalida(self):
+        aluno = criar_aluno("Alice")
+        curso = criar_curso("Math")
+        matricular_aluno(aluno, curso)
+        with pytest.raises(ErroNotaInvalida):
+            adicionar_nota(aluno, curso, letra="Z")
 
 
 @pytest.mark.django_db
-class TestReportCard:
-    def test_report_card(self):
-        student = create_student("Alice")
-        math = create_course("Math")
-        physics = create_course("Physics")
-        enroll_student(student, math)
-        enroll_student(student, physics)
-        add_grade(student, math, value=95)
-        add_grade(student, math, value=85)
-        add_grade(student, physics, value=70)
+class TestObterNotas:
+    def test_obter_notas(self):
+        aluno = criar_aluno("Alice")
+        curso = criar_curso("Math")
+        matricular_aluno(aluno, curso)
+        adicionar_nota(aluno, curso, valor=90)
+        adicionar_nota(aluno, curso, valor=85)
+        assert obter_notas(aluno, curso) == [90, 85]
 
-        report = get_report_card(student)
-        assert len(report) == 2
-
-        by_course = {r["course"]: r for r in report}
-        assert by_course["Math"]["grades"] == [95, 85]
-        assert by_course["Math"]["average"] == 90
-        assert by_course["Math"]["letter"] == "A-"
-        assert by_course["Physics"]["grades"] == [70]
-        assert by_course["Physics"]["average"] == 70
-        assert by_course["Physics"]["letter"] == "C-"
+    def test_obter_notas_como_letras(self):
+        aluno = criar_aluno("Alice")
+        curso = criar_curso("Math")
+        matricular_aluno(aluno, curso)
+        adicionar_nota(aluno, curso, valor=95)
+        adicionar_nota(aluno, curso, valor=85)
+        assert obter_notas_como_letras(aluno, curso) == ["A", "B"]
 
 
-class TestGradeScale:
-    def test_value_to_letter(self):
-        assert value_to_letter(100) == "A+"
-        assert value_to_letter(97) == "A+"
-        assert value_to_letter(93) == "A"
-        assert value_to_letter(90) == "A-"
-        assert value_to_letter(87) == "B+"
-        assert value_to_letter(83) == "B"
-        assert value_to_letter(80) == "B-"
-        assert value_to_letter(77) == "C+"
-        assert value_to_letter(73) == "C"
-        assert value_to_letter(70) == "C-"
-        assert value_to_letter(65) == "D"
-        assert value_to_letter(50) == "F"
-        assert value_to_letter(0) == "F"
+@pytest.mark.django_db
+class TestMedia:
+    def test_obter_media(self):
+        aluno = criar_aluno("Alice")
+        curso = criar_curso("Math")
+        matricular_aluno(aluno, curso)
+        adicionar_nota(aluno, curso, valor=90)
+        adicionar_nota(aluno, curso, valor=80)
+        assert obter_media(aluno, curso) == 85
 
-    def test_letter_to_value(self):
-        assert letter_to_value("A+") == 100
-        assert letter_to_value("A") == 96
-        assert letter_to_value("F") == 59
+    def test_obter_media_arredonda(self):
+        aluno = criar_aluno("Alice")
+        curso = criar_curso("Math")
+        matricular_aluno(aluno, curso)
+        adicionar_nota(aluno, curso, valor=90)
+        adicionar_nota(aluno, curso, valor=81)
+        assert obter_media(aluno, curso) == 86
 
-    def test_invalid_letter(self):
+    def test_obter_media_em_letra(self):
+        aluno = criar_aluno("Alice")
+        curso = criar_curso("Math")
+        matricular_aluno(aluno, curso)
+        adicionar_nota(aluno, curso, valor=90)
+        adicionar_nota(aluno, curso, valor=80)
+        assert obter_media_em_letra(aluno, curso) == "B"
+
+    def test_obter_media_sem_notas(self):
+        aluno = criar_aluno("Alice")
+        curso = criar_curso("Math")
+        matricular_aluno(aluno, curso)
+        assert obter_media(aluno, curso) == 0
+
+
+@pytest.mark.django_db
+class TestBoletim:
+    def test_obter_boletim(self):
+        aluno = criar_aluno("Alice")
+        matematica = criar_curso("Math")
+        fisica = criar_curso("Physics")
+        matricular_aluno(aluno, matematica)
+        matricular_aluno(aluno, fisica)
+        adicionar_nota(aluno, matematica, valor=95)
+        adicionar_nota(aluno, matematica, valor=85)
+        adicionar_nota(aluno, fisica, valor=70)
+
+        boletim = obter_boletim(aluno)
+        assert len(boletim) == 2
+
+        por_curso = {item["curso"]: item for item in boletim}
+        assert por_curso["Math"]["notas"] == [95, 85]
+        assert por_curso["Math"]["media"] == 90
+        assert por_curso["Math"]["letra"] == "A-"
+        assert por_curso["Physics"]["notas"] == [70]
+        assert por_curso["Physics"]["media"] == 70
+        assert por_curso["Physics"]["letra"] == "C-"
+
+
+class TestEscalaNotas:
+    def test_valor_para_letra(self):
+        assert valor_para_letra(100) == "A+"
+        assert valor_para_letra(97) == "A+"
+        assert valor_para_letra(93) == "A"
+        assert valor_para_letra(90) == "A-"
+        assert valor_para_letra(87) == "B+"
+        assert valor_para_letra(83) == "B"
+        assert valor_para_letra(80) == "B-"
+        assert valor_para_letra(77) == "C+"
+        assert valor_para_letra(73) == "C"
+        assert valor_para_letra(70) == "C-"
+        assert valor_para_letra(65) == "D"
+        assert valor_para_letra(50) == "F"
+        assert valor_para_letra(0) == "F"
+
+    def test_letra_para_valor(self):
+        assert letra_para_valor("A+") == 100
+        assert letra_para_valor("A") == 96
+        assert letra_para_valor("F") == 59
+
+    def test_letra_invalida(self):
         with pytest.raises(ValueError):
-            letter_to_value("Z")
+            letra_para_valor("Z")

@@ -1,4 +1,4 @@
-name: Tests
+name: Testes
 
 on:
   push:
@@ -17,8 +17,8 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Install dependencies
+      - name: Instalar dependencias
         run: pip install -r requirements.txt
 
-      - name: Run tests
+      - name: Executar testes
         run: python -m pytest tests/ -v

@@ -1,9 +1,9 @@
 """
-WSGI config for academic project.
+Configuracao WSGI para o projeto academic.
 
-It exposes the WSGI callable as a module-level variable named ``application``.
+Expoe o objeto WSGI em nivel de modulo com o nome ``application``.
 
-For more information on this file, see
+Para mais informacoes, veja:
 https://docs.djangoproject.com/en/5.2/howto/deployment/wsgi/
 """
 

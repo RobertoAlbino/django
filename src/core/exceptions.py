@@ -1,14 +1,14 @@
-class DomainError(Exception):
+class ErroDominio(Exception):
     pass
 
 
-class AlreadyEnrolledError(DomainError):
+class ErroJaMatriculado(ErroDominio):
     pass
 
 
-class NotEnrolledError(DomainError):
+class ErroNaoMatriculado(ErroDominio):
     pass
 
 
-class InvalidGradeError(DomainError):
+class ErroNotaInvalida(ErroDominio):
     pass

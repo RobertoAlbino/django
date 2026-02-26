@@ -5,196 +5,227 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from core.exceptions import AlreadyEnrolledError, InvalidGradeError, NotEnrolledError
-from core.models import Course, Student
+from core.exceptions import ErroJaMatriculado, ErroNaoMatriculado, ErroNotaInvalida
+from core.models import Aluno, Curso
 from core.services import (
-    add_grade,
-    create_course,
-    create_student,
-    enroll_student,
-    get_course_students,
-    get_grades,
-    get_report_card,
-    get_student_courses,
+    adicionar_nota,
+    criar_aluno,
+    criar_curso,
+    matricular_aluno,
+    obter_alunos_curso,
+    obter_boletim,
+    obter_cursos_aluno,
+    obter_notas,
 )
 
 logger = logging.getLogger("core")
 
 
-def _parse_json(request):
+def _carregar_json(requisicao):
     try:
-        return json.loads(request.body)
+        dados = json.loads(requisicao.body)
+        logger.info("[views._carregar_json] payload_valido")
+        return dados
     except (json.JSONDecodeError, ValueError):
+        logger.warning("[views._carregar_json] payload_invalido")
         return None
 
 
 @csrf_exempt
 @require_POST
-def student_create(request):
-    data = _parse_json(request)
-    if not data or "name" not in data:
-        return JsonResponse({"error": "Field 'name' is required"}, status=400)
+def criar_aluno_view(requisicao):
+    logger.info("[views.criar_aluno] inicio")
+    dados = _carregar_json(requisicao)
+    if not dados or "nome" not in dados:
+        logger.warning("[views.criar_aluno] erro campo_nome_ausente")
+        return JsonResponse({"erro": "Campo 'nome' e obrigatorio"}, status=400)
 
-    logger.info("Creating student: %s", data["name"])
-    student = create_student(data["name"])
-    logger.info("Student created: id=%d, name=%s", student.pk, student.name)
-    return JsonResponse({"id": student.pk, "name": student.name}, status=201)
-
-
-@csrf_exempt
-@require_POST
-def course_create(request):
-    data = _parse_json(request)
-    if not data or "name" not in data:
-        return JsonResponse({"error": "Field 'name' is required"}, status=400)
-
-    logger.info("Creating course: %s", data["name"])
-    course = create_course(data["name"])
-    logger.info("Course created: id=%d, name=%s", course.pk, course.name)
-    return JsonResponse({"id": course.pk, "name": course.name}, status=201)
+    logger.info("[views.criar_aluno] criando nome=%s", dados["nome"])
+    aluno = criar_aluno(dados["nome"])
+    logger.info("[views.criar_aluno] criado id=%d nome=%s", aluno.pk, aluno.nome)
+    return JsonResponse({"id": aluno.pk, "nome": aluno.nome}, status=201)
 
 
 @csrf_exempt
 @require_POST
-def enrollment_create(request):
-    data = _parse_json(request)
-    if not data or "student_id" not in data or "course_id" not in data:
+def criar_curso_view(requisicao):
+    logger.info("[views.criar_curso] inicio")
+    dados = _carregar_json(requisicao)
+    if not dados or "nome" not in dados:
+        logger.warning("[views.criar_curso] erro campo_nome_ausente")
+        return JsonResponse({"erro": "Campo 'nome' e obrigatorio"}, status=400)
+
+    logger.info("[views.criar_curso] criando nome=%s", dados["nome"])
+    curso = criar_curso(dados["nome"])
+    logger.info("[views.criar_curso] criado id=%d nome=%s", curso.pk, curso.nome)
+    return JsonResponse({"id": curso.pk, "nome": curso.nome}, status=201)
+
+
+@csrf_exempt
+@require_POST
+def criar_matricula(requisicao):
+    logger.info("[views.criar_matricula] inicio")
+    dados = _carregar_json(requisicao)
+    if not dados or "aluno_id" not in dados or "curso_id" not in dados:
+        logger.warning("[views.criar_matricula] erro campos_obrigatorios_ausentes")
         return JsonResponse(
-            {"error": "Fields 'student_id' and 'course_id' are required"}, status=400
+            {"erro": "Campos 'aluno_id' e 'curso_id' sao obrigatorios"}, status=400
         )
 
     try:
-        student = Student.objects.get(pk=data["student_id"])
-    except Student.DoesNotExist:
-        return JsonResponse({"error": "Student not found"}, status=404)
+        aluno = Aluno.objects.get(pk=dados["aluno_id"])
+    except Aluno.DoesNotExist:
+        logger.warning("[views.criar_matricula] aluno_nao_encontrado id=%s", dados.get("aluno_id"))
+        return JsonResponse({"erro": "Aluno nao encontrado"}, status=404)
 
     try:
-        course = Course.objects.get(pk=data["course_id"])
-    except Course.DoesNotExist:
-        return JsonResponse({"error": "Course not found"}, status=404)
+        curso = Curso.objects.get(pk=dados["curso_id"])
+    except Curso.DoesNotExist:
+        logger.warning("[views.criar_matricula] curso_nao_encontrado id=%s", dados.get("curso_id"))
+        return JsonResponse({"erro": "Curso nao encontrado"}, status=404)
 
-    logger.info("Enrolling student=%s in course=%s", student.name, course.name)
+    logger.info("[views.criar_matricula] matriculando aluno=%s curso=%s", aluno.nome, curso.nome)
     try:
-        enrollment = enroll_student(student, course)
-    except AlreadyEnrolledError as e:
-        logger.warning("Duplicate enrollment: %s", e)
-        return JsonResponse({"error": str(e)}, status=409)
+        matricula = matricular_aluno(aluno, curso)
+    except ErroJaMatriculado as erro:
+        logger.warning("[views.criar_matricula] matricula_duplicada: %s", erro)
+        return JsonResponse({"erro": str(erro)}, status=409)
 
-    logger.info("Enrollment created: id=%d", enrollment.pk)
+    logger.info("[views.criar_matricula] matricula_criada id=%d", matricula.pk)
     return JsonResponse(
         {
-            "id": enrollment.pk,
-            "student_id": student.pk,
-            "course_id": course.pk,
+            "id": matricula.pk,
+            "aluno_id": aluno.pk,
+            "curso_id": curso.pk,
         },
         status=201,
     )
 
 
 @require_GET
-def student_courses(request, student_id):
+def listar_cursos_aluno(requisicao, aluno_id):
+    logger.info("[views.listar_cursos_aluno] inicio aluno_id=%s", aluno_id)
     try:
-        student = Student.objects.get(pk=student_id)
-    except Student.DoesNotExist:
-        return JsonResponse({"error": "Student not found"}, status=404)
+        aluno = Aluno.objects.get(pk=aluno_id)
+    except Aluno.DoesNotExist:
+        logger.warning("[views.listar_cursos_aluno] aluno_nao_encontrado id=%s", aluno_id)
+        return JsonResponse({"erro": "Aluno nao encontrado"}, status=404)
 
-    logger.info("Listing courses for student=%s", student.name)
-    courses = get_student_courses(student)
-    result = [{"id": c.pk, "name": c.name} for c in courses]
-    logger.info("Found %d courses for student=%s", len(result), student.name)
-    return JsonResponse({"courses": result})
+    logger.info("[views.listar_cursos_aluno] buscando cursos do aluno=%s", aluno.nome)
+    cursos = obter_cursos_aluno(aluno)
+    resultado = [{"id": curso.pk, "nome": curso.nome} for curso in cursos]
+    logger.info("[views.listar_cursos_aluno] total=%d", len(resultado))
+    return JsonResponse({"cursos": resultado})
 
 
 @require_GET
-def course_students(request, course_id):
+def listar_alunos_curso(requisicao, curso_id):
+    logger.info("[views.listar_alunos_curso] inicio curso_id=%s", curso_id)
     try:
-        course = Course.objects.get(pk=course_id)
-    except Course.DoesNotExist:
-        return JsonResponse({"error": "Course not found"}, status=404)
+        curso = Curso.objects.get(pk=curso_id)
+    except Curso.DoesNotExist:
+        logger.warning("[views.listar_alunos_curso] curso_nao_encontrado id=%s", curso_id)
+        return JsonResponse({"erro": "Curso nao encontrado"}, status=404)
 
-    logger.info("Listing students for course=%s", course.name)
-    students = get_course_students(course)
-    result = [{"id": s.pk, "name": s.name} for s in students]
-    logger.info("Found %d students in course=%s", len(result), course.name)
-    return JsonResponse({"students": result})
+    logger.info("[views.listar_alunos_curso] buscando alunos do curso=%s", curso.nome)
+    alunos = obter_alunos_curso(curso)
+    resultado = [{"id": aluno.pk, "nome": aluno.nome} for aluno in alunos]
+    logger.info("[views.listar_alunos_curso] total=%d", len(resultado))
+    return JsonResponse({"alunos": resultado})
 
 
 @csrf_exempt
 @require_POST
-def grade_create(request):
-    data = _parse_json(request)
-    if not data or "student_id" not in data or "course_id" not in data:
+def criar_nota(requisicao):
+    logger.info("[views.criar_nota] inicio")
+    dados = _carregar_json(requisicao)
+    if not dados or "aluno_id" not in dados or "curso_id" not in dados:
+        logger.warning("[views.criar_nota] erro campos_obrigatorios_ausentes")
         return JsonResponse(
-            {"error": "Fields 'student_id' and 'course_id' are required"}, status=400
+            {"erro": "Campos 'aluno_id' e 'curso_id' sao obrigatorios"}, status=400
         )
 
     try:
-        student = Student.objects.get(pk=data["student_id"])
-    except Student.DoesNotExist:
-        return JsonResponse({"error": "Student not found"}, status=404)
+        aluno = Aluno.objects.get(pk=dados["aluno_id"])
+    except Aluno.DoesNotExist:
+        logger.warning("[views.criar_nota] aluno_nao_encontrado id=%s", dados.get("aluno_id"))
+        return JsonResponse({"erro": "Aluno nao encontrado"}, status=404)
 
     try:
-        course = Course.objects.get(pk=data["course_id"])
-    except Course.DoesNotExist:
-        return JsonResponse({"error": "Course not found"}, status=404)
+        curso = Curso.objects.get(pk=dados["curso_id"])
+    except Curso.DoesNotExist:
+        logger.warning("[views.criar_nota] curso_nao_encontrado id=%s", dados.get("curso_id"))
+        return JsonResponse({"erro": "Curso nao encontrado"}, status=404)
 
-    value = data.get("value")
-    letter = data.get("letter")
+    valor = dados.get("valor")
+    letra = dados.get("letra")
 
     logger.info(
-        "Adding grade for student=%s, course=%s (value=%s, letter=%s)",
-        student.name,
-        course.name,
-        value,
-        letter,
+        "[views.criar_nota] adicionando aluno=%s curso=%s (valor=%s, letra=%s)",
+        aluno.nome,
+        curso.nome,
+        valor,
+        letra,
     )
 
     try:
-        grade = add_grade(student, course, value=value, letter=letter)
-    except NotEnrolledError as e:
-        logger.warning("Grade failed - not enrolled: %s", e)
-        return JsonResponse({"error": str(e)}, status=404)
-    except InvalidGradeError as e:
-        logger.warning("Grade failed - invalid: %s", e)
-        return JsonResponse({"error": str(e)}, status=400)
+        nota = adicionar_nota(aluno, curso, valor=valor, letra=letra)
+    except ErroNaoMatriculado as erro:
+        logger.warning("[views.criar_nota] falha_nao_matriculado: %s", erro)
+        return JsonResponse({"erro": str(erro)}, status=404)
+    except ErroNotaInvalida as erro:
+        logger.warning("[views.criar_nota] falha_nota_invalida: %s", erro)
+        return JsonResponse({"erro": str(erro)}, status=400)
 
-    logger.info("Grade added: id=%d, value=%d", grade.pk, grade.value)
-    return JsonResponse({"id": grade.pk, "value": grade.value}, status=201)
+    logger.info("[views.criar_nota] nota_criada id=%d valor=%d", nota.pk, nota.valor)
+    return JsonResponse({"id": nota.pk, "valor": nota.valor}, status=201)
 
 
 @require_GET
-def student_course_grades(request, student_id, course_id):
+def listar_notas_aluno_curso(requisicao, aluno_id, curso_id):
+    logger.info(
+        "[views.listar_notas_aluno_curso] inicio aluno_id=%s curso_id=%s",
+        aluno_id,
+        curso_id,
+    )
     try:
-        student = Student.objects.get(pk=student_id)
-    except Student.DoesNotExist:
-        return JsonResponse({"error": "Student not found"}, status=404)
+        aluno = Aluno.objects.get(pk=aluno_id)
+    except Aluno.DoesNotExist:
+        logger.warning("[views.listar_notas_aluno_curso] aluno_nao_encontrado id=%s", aluno_id)
+        return JsonResponse({"erro": "Aluno nao encontrado"}, status=404)
 
     try:
-        course = Course.objects.get(pk=course_id)
-    except Course.DoesNotExist:
-        return JsonResponse({"error": "Course not found"}, status=404)
+        curso = Curso.objects.get(pk=curso_id)
+    except Curso.DoesNotExist:
+        logger.warning("[views.listar_notas_aluno_curso] curso_nao_encontrado id=%s", curso_id)
+        return JsonResponse({"erro": "Curso nao encontrado"}, status=404)
 
     logger.info(
-        "Getting grades for student=%s, course=%s", student.name, course.name
+        "[views.listar_notas_aluno_curso] buscando notas aluno=%s curso=%s",
+        aluno.nome,
+        curso.nome,
     )
 
     try:
-        grades = get_grades(student, course)
-    except NotEnrolledError as e:
-        return JsonResponse({"error": str(e)}, status=404)
+        notas = obter_notas(aluno, curso)
+    except ErroNaoMatriculado as erro:
+        logger.warning("[views.listar_notas_aluno_curso] aluno_nao_matriculado: %s", erro)
+        return JsonResponse({"erro": str(erro)}, status=404)
 
-    logger.info("Found %d grades", len(grades))
-    return JsonResponse({"grades": grades})
+    logger.info("[views.listar_notas_aluno_curso] total=%d", len(notas))
+    return JsonResponse({"notas": notas})
 
 
 @require_GET
-def student_report(request, student_id):
+def obter_boletim_aluno(requisicao, aluno_id):
+    logger.info("[views.obter_boletim_aluno] inicio aluno_id=%s", aluno_id)
     try:
-        student = Student.objects.get(pk=student_id)
-    except Student.DoesNotExist:
-        return JsonResponse({"error": "Student not found"}, status=404)
+        aluno = Aluno.objects.get(pk=aluno_id)
+    except Aluno.DoesNotExist:
+        logger.warning("[views.obter_boletim_aluno] aluno_nao_encontrado id=%s", aluno_id)
+        return JsonResponse({"erro": "Aluno nao encontrado"}, status=404)
 
-    logger.info("Generating report card for student=%s", student.name)
-    report = get_report_card(student)
-    logger.info("Report card: %d courses", len(report))
-    return JsonResponse({"student": student.name, "report": report})
+    logger.info("[views.obter_boletim_aluno] gerando boletim aluno=%s", aluno.nome)
+    boletim = obter_boletim(aluno)
+    logger.info("[views.obter_boletim_aluno] total_cursos=%d", len(boletim))
+    return JsonResponse({"aluno": aluno.nome, "boletim": boletim})

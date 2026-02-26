@@ -3,16 +3,16 @@ from django.urls import path
 from core import views
 
 urlpatterns = [
-    path("students/", views.student_create, name="student-create"),
-    path("courses/", views.course_create, name="course-create"),
-    path("enrollments/", views.enrollment_create, name="enrollment-create"),
-    path("students/<int:student_id>/courses/", views.student_courses, name="student-courses"),
-    path("courses/<int:course_id>/students/", views.course_students, name="course-students"),
-    path("grades/", views.grade_create, name="grade-create"),
+    path("alunos/", views.criar_aluno_view, name="criar-aluno"),
+    path("cursos/", views.criar_curso_view, name="criar-curso"),
+    path("matriculas/", views.criar_matricula, name="criar-matricula"),
+    path("alunos/<int:aluno_id>/cursos/", views.listar_cursos_aluno, name="listar-cursos-aluno"),
+    path("cursos/<int:curso_id>/alunos/", views.listar_alunos_curso, name="listar-alunos-curso"),
+    path("notas/", views.criar_nota, name="criar-nota"),
     path(
-        "students/<int:student_id>/courses/<int:course_id>/grades/",
-        views.student_course_grades,
-        name="student-course-grades",
+        "alunos/<int:aluno_id>/cursos/<int:curso_id>/notas/",
+        views.listar_notas_aluno_curso,
+        name="listar-notas-aluno-curso",
     ),
-    path("students/<int:student_id>/report/", views.student_report, name="student-report"),
+    path("alunos/<int:aluno_id>/boletim/", views.obter_boletim_aluno, name="obter-boletim-aluno"),
 ]

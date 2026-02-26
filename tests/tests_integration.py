@@ -12,213 +12,202 @@ def client():
     return Client()
 
 
-def _post(client, url, data):
-    return client.post(url, json.dumps(data), content_type="application/json")
+def _postar(cliente, url, dados):
+    return cliente.post(url, json.dumps(dados), content_type="application/json")
 
 
 @pytest.mark.django_db
-class TestFullFlow:
-    """Test the complete flow: create student -> create course -> enroll -> add grades -> query."""
+class TestFluxoCompleto:
+    """Teste do fluxo completo: criar aluno -> criar curso -> matricular -> adicionar notas -> consultar."""
 
-    def test_complete_flow(self, client):
-        logger.info("=== Starting complete flow test ===")
+    def test_fluxo_completo(self, client):
+        logger.info("=== Iniciando teste de fluxo completo ===")
 
-        # Create student
-        resp = _post(client, "/api/students/", {"name": "Alice"})
+        resp = _postar(client, "/api/alunos/", {"nome": "Alice"})
         assert resp.status_code == 201
-        student = resp.json()
-        assert student["name"] == "Alice"
-        student_id = student["id"]
+        aluno = resp.json()
+        assert aluno["nome"] == "Alice"
+        aluno_id = aluno["id"]
 
-        # Create courses
-        resp = _post(client, "/api/courses/", {"name": "Math"})
+        resp = _postar(client, "/api/cursos/", {"nome": "Math"})
         assert resp.status_code == 201
-        math = resp.json()
-        math_id = math["id"]
+        matematica = resp.json()
+        matematica_id = matematica["id"]
 
-        resp = _post(client, "/api/courses/", {"name": "Physics"})
+        resp = _postar(client, "/api/cursos/", {"nome": "Physics"})
         assert resp.status_code == 201
-        physics = resp.json()
-        physics_id = physics["id"]
+        fisica = resp.json()
+        fisica_id = fisica["id"]
 
-        # Enroll in both courses
-        resp = _post(
+        resp = _postar(
             client,
-            "/api/enrollments/",
-            {"student_id": student_id, "course_id": math_id},
+            "/api/matriculas/",
+            {"aluno_id": aluno_id, "curso_id": matematica_id},
         )
         assert resp.status_code == 201
 
-        resp = _post(
+        resp = _postar(
             client,
-            "/api/enrollments/",
-            {"student_id": student_id, "course_id": physics_id},
+            "/api/matriculas/",
+            {"aluno_id": aluno_id, "curso_id": fisica_id},
         )
         assert resp.status_code == 201
 
-        # Add grades
-        resp = _post(
+        resp = _postar(
             client,
-            "/api/grades/",
-            {"student_id": student_id, "course_id": math_id, "value": 95},
+            "/api/notas/",
+            {"aluno_id": aluno_id, "curso_id": matematica_id, "valor": 95},
         )
         assert resp.status_code == 201
-        assert resp.json()["value"] == 95
+        assert resp.json()["valor"] == 95
 
-        resp = _post(
+        resp = _postar(
             client,
-            "/api/grades/",
-            {"student_id": student_id, "course_id": math_id, "value": 85},
-        )
-        assert resp.status_code == 201
-
-        resp = _post(
-            client,
-            "/api/grades/",
-            {"student_id": student_id, "course_id": physics_id, "letter": "B"},
+            "/api/notas/",
+            {"aluno_id": aluno_id, "curso_id": matematica_id, "valor": 85},
         )
         assert resp.status_code == 201
 
-        # Query student courses
-        resp = client.get(f"/api/students/{student_id}/courses/")
+        resp = _postar(
+            client,
+            "/api/notas/",
+            {"aluno_id": aluno_id, "curso_id": fisica_id, "letra": "B"},
+        )
+        assert resp.status_code == 201
+
+        resp = client.get(f"/api/alunos/{aluno_id}/cursos/")
         assert resp.status_code == 200
-        courses = resp.json()["courses"]
-        assert len(courses) == 2
-        course_names = {c["name"] for c in courses}
-        assert course_names == {"Math", "Physics"}
+        cursos = resp.json()["cursos"]
+        assert len(cursos) == 2
+        nomes_cursos = {c["nome"] for c in cursos}
+        assert nomes_cursos == {"Math", "Physics"}
 
-        # Query course students
-        resp = client.get(f"/api/courses/{math_id}/students/")
+        resp = client.get(f"/api/cursos/{matematica_id}/alunos/")
         assert resp.status_code == 200
-        students = resp.json()["students"]
-        assert len(students) == 1
-        assert students[0]["name"] == "Alice"
+        alunos = resp.json()["alunos"]
+        assert len(alunos) == 1
+        assert alunos[0]["nome"] == "Alice"
 
-        # Query grades
-        resp = client.get(f"/api/students/{student_id}/courses/{math_id}/grades/")
+        resp = client.get(f"/api/alunos/{aluno_id}/cursos/{matematica_id}/notas/")
         assert resp.status_code == 200
-        assert resp.json()["grades"] == [95, 85]
+        assert resp.json()["notas"] == [95, 85]
 
-        # Query report card
-        resp = client.get(f"/api/students/{student_id}/report/")
+        resp = client.get(f"/api/alunos/{aluno_id}/boletim/")
         assert resp.status_code == 200
-        report = resp.json()
-        assert report["student"] == "Alice"
-        assert len(report["report"]) == 2
+        boletim_resposta = resp.json()
+        assert boletim_resposta["aluno"] == "Alice"
+        assert len(boletim_resposta["boletim"]) == 2
 
-        by_course = {r["course"]: r for r in report["report"]}
-        assert by_course["Math"]["grades"] == [95, 85]
-        assert by_course["Math"]["average"] == 90
-        assert by_course["Math"]["letter"] == "A-"
+        por_curso = {item["curso"]: item for item in boletim_resposta["boletim"]}
+        assert por_curso["Math"]["notas"] == [95, 85]
+        assert por_curso["Math"]["media"] == 90
+        assert por_curso["Math"]["letra"] == "A-"
 
-        logger.info("=== Complete flow test passed ===")
+        logger.info("=== Teste de fluxo completo concluido ===")
 
 
 @pytest.mark.django_db
-class TestErrorCases:
-    """Test error responses from the API."""
+class TestCasosErro:
+    """Testa respostas de erro da API."""
 
-    def test_duplicate_enrollment_returns_409(self, client):
-        resp = _post(client, "/api/students/", {"name": "Bob"})
-        student_id = resp.json()["id"]
+    def test_matricula_duplicada_retorna_409(self, client):
+        resp = _postar(client, "/api/alunos/", {"nome": "Bob"})
+        aluno_id = resp.json()["id"]
 
-        resp = _post(client, "/api/courses/", {"name": "History"})
-        course_id = resp.json()["id"]
+        resp = _postar(client, "/api/cursos/", {"nome": "History"})
+        curso_id = resp.json()["id"]
 
-        resp = _post(
+        resp = _postar(
             client,
-            "/api/enrollments/",
-            {"student_id": student_id, "course_id": course_id},
+            "/api/matriculas/",
+            {"aluno_id": aluno_id, "curso_id": curso_id},
         )
         assert resp.status_code == 201
 
-        # Duplicate enrollment
-        resp = _post(
+        resp = _postar(
             client,
-            "/api/enrollments/",
-            {"student_id": student_id, "course_id": course_id},
+            "/api/matriculas/",
+            {"aluno_id": aluno_id, "curso_id": curso_id},
         )
         assert resp.status_code == 409
-        assert "already enrolled" in resp.json()["error"].lower()
+        assert "matriculado" in resp.json()["erro"].lower()
 
-    def test_grade_not_enrolled_returns_404(self, client):
-        resp = _post(client, "/api/students/", {"name": "Charlie"})
-        student_id = resp.json()["id"]
+    def test_nota_sem_matricula_retorna_404(self, client):
+        resp = _postar(client, "/api/alunos/", {"nome": "Charlie"})
+        aluno_id = resp.json()["id"]
 
-        resp = _post(client, "/api/courses/", {"name": "Art"})
-        course_id = resp.json()["id"]
+        resp = _postar(client, "/api/cursos/", {"nome": "Art"})
+        curso_id = resp.json()["id"]
 
-        # Try to add grade without enrollment
-        resp = _post(
+        resp = _postar(
             client,
-            "/api/grades/",
-            {"student_id": student_id, "course_id": course_id, "value": 80},
+            "/api/notas/",
+            {"aluno_id": aluno_id, "curso_id": curso_id, "valor": 80},
         )
         assert resp.status_code == 404
-        assert "not enrolled" in resp.json()["error"].lower()
+        assert "matriculado" in resp.json()["erro"].lower()
 
-    def test_invalid_grade_value_returns_400(self, client):
-        resp = _post(client, "/api/students/", {"name": "Diana"})
-        student_id = resp.json()["id"]
+    def test_valor_nota_invalido_retorna_400(self, client):
+        resp = _postar(client, "/api/alunos/", {"nome": "Diana"})
+        aluno_id = resp.json()["id"]
 
-        resp = _post(client, "/api/courses/", {"name": "Music"})
-        course_id = resp.json()["id"]
+        resp = _postar(client, "/api/cursos/", {"nome": "Music"})
+        curso_id = resp.json()["id"]
 
-        _post(
+        _postar(
             client,
-            "/api/enrollments/",
-            {"student_id": student_id, "course_id": course_id},
+            "/api/matriculas/",
+            {"aluno_id": aluno_id, "curso_id": curso_id},
         )
 
-        # Grade > 100
-        resp = _post(
+        resp = _postar(
             client,
-            "/api/grades/",
-            {"student_id": student_id, "course_id": course_id, "value": 101},
-        )
-        assert resp.status_code == 400
-
-    def test_invalid_letter_grade_returns_400(self, client):
-        resp = _post(client, "/api/students/", {"name": "Eve"})
-        student_id = resp.json()["id"]
-
-        resp = _post(client, "/api/courses/", {"name": "PE"})
-        course_id = resp.json()["id"]
-
-        _post(
-            client,
-            "/api/enrollments/",
-            {"student_id": student_id, "course_id": course_id},
-        )
-
-        resp = _post(
-            client,
-            "/api/grades/",
-            {"student_id": student_id, "course_id": course_id, "letter": "Z"},
+            "/api/notas/",
+            {"aluno_id": aluno_id, "curso_id": curso_id, "valor": 101},
         )
         assert resp.status_code == 400
 
-    def test_student_not_found_returns_404(self, client):
-        resp = client.get("/api/students/9999/courses/")
+    def test_letra_nota_invalida_retorna_400(self, client):
+        resp = _postar(client, "/api/alunos/", {"nome": "Eve"})
+        aluno_id = resp.json()["id"]
+
+        resp = _postar(client, "/api/cursos/", {"nome": "PE"})
+        curso_id = resp.json()["id"]
+
+        _postar(
+            client,
+            "/api/matriculas/",
+            {"aluno_id": aluno_id, "curso_id": curso_id},
+        )
+
+        resp = _postar(
+            client,
+            "/api/notas/",
+            {"aluno_id": aluno_id, "curso_id": curso_id, "letra": "Z"},
+        )
+        assert resp.status_code == 400
+
+    def test_aluno_nao_encontrado_retorna_404(self, client):
+        resp = client.get("/api/alunos/9999/cursos/")
         assert resp.status_code == 404
 
-    def test_course_not_found_returns_404(self, client):
-        resp = client.get("/api/courses/9999/students/")
+    def test_curso_nao_encontrado_retorna_404(self, client):
+        resp = client.get("/api/cursos/9999/alunos/")
         assert resp.status_code == 404
 
-    def test_missing_name_returns_400(self, client):
-        resp = _post(client, "/api/students/", {})
+    def test_nome_ausente_retorna_400(self, client):
+        resp = _postar(client, "/api/alunos/", {})
         assert resp.status_code == 400
 
-        resp = _post(client, "/api/courses/", {})
+        resp = _postar(client, "/api/cursos/", {})
         assert resp.status_code == 400
 
-    def test_grades_not_enrolled_returns_404(self, client):
-        resp = _post(client, "/api/students/", {"name": "Frank"})
-        student_id = resp.json()["id"]
+    def test_notas_sem_matricula_retorna_404(self, client):
+        resp = _postar(client, "/api/alunos/", {"nome": "Frank"})
+        aluno_id = resp.json()["id"]
 
-        resp = _post(client, "/api/courses/", {"name": "Biology"})
-        course_id = resp.json()["id"]
+        resp = _postar(client, "/api/cursos/", {"nome": "Biology"})
+        curso_id = resp.json()["id"]
 
-        resp = client.get(f"/api/students/{student_id}/courses/{course_id}/grades/")
+        resp = client.get(f"/api/alunos/{aluno_id}/cursos/{curso_id}/notas/")
         assert resp.status_code == 404
