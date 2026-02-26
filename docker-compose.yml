@@ -9,6 +9,6 @@ services:
 
   test:
     build: .
-    command: python -m pytest core/tests.py -v
+    command: python -m pytest core/tests.py core/tests_integration.py -v -s
     volumes:
       - .:/app
