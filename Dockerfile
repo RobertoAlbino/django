@@ -9,4 +9,4 @@ COPY . .
 
 RUN python manage.py migrate --run-syncdb
 
-CMD ["python", "-m", "pytest", "core/tests.py", "-v"]
+CMD ["python", "-m", "pytest", "tests/", "-v"]
